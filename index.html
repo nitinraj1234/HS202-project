@@ -1,0 +1,621 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AquaWatch – River Water Quality</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#edf4f4;--card:#fff;--ink:#0d2a33;--mute:#58717a;--line:#d5e2e4;--accent:#0a7f8f;--accent2:#065a67;--soft:rgba(10,127,143,.09);--sh:0 2px 4px rgba(6,42,53,.05),0 18px 40px -18px rgba(6,42,53,.28);--r:16px;--ease:cubic-bezier(.2,.7,.2,1)}
+@media (prefers-color-scheme:dark){:root{--bg:#07181e;--card:#0e2630;--ink:#e4f0f2;--mute:#8fa9b1;--line:#1d3a46;--accent:#3cc0d0;--accent2:#7fdbe6;--soft:rgba(60,192,208,.12)}}
+*{box-sizing:border-box}html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
+h1,h3,.brand,.kpi b{font-family:"Bricolage Grotesque","Public Sans",system-ui,sans-serif}
+:focus-visible{outline:3px solid rgba(10,127,143,.5);outline-offset:2px}
+/* top bar + sliding tab pill */
+.topbar{position:sticky;top:0;z-index:2000;display:flex;align-items:center;gap:18px;padding:10px 22px;background:rgba(4,37,47,.86);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#fff}
+.brand{display:flex;align-items:center;gap:9px;font-weight:700;font-size:21px;white-space:nowrap;letter-spacing:-.01em}
+.brand svg{width:26px;height:26px;animation:bob 4s ease-in-out infinite}
+nav{position:relative;display:flex;gap:2px;overflow-x:auto;margin-left:auto;padding:4px;border-radius:99px;background:rgba(255,255,255,.09);scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+nav button{position:relative;z-index:1;border:0;background:none;color:rgba(255,255,255,.78);padding:8px 16px;border-radius:99px;font-weight:600;white-space:nowrap;transition:color .3s}
+nav button:hover{color:#fff}nav button.on{color:#04252f}
+.ind{position:absolute;top:4px;bottom:4px;left:0;width:0;border-radius:99px;background:#7fe3ee;transition:transform .5s cubic-bezier(.3,1.25,.5,1),width .5s cubic-bezier(.3,1.25,.5,1)}
+/* hero */
+.hero{position:relative;overflow:hidden;color:#fff;background:linear-gradient(160deg,#04252f 10%,#0a6b7a);padding:54px 22px 100px;transition:padding .7s cubic-bezier(.65,0,.35,1)}
+.hero>div{max-width:1456px;margin:auto;position:relative;z-index:2}
+.hero h1{margin:0;font-size:clamp(30px,4.8vw,54px);line-height:1.06;max-width:14em;letter-spacing:-.025em;transition:font-size .7s cubic-bezier(.65,0,.35,1)}
+.lede{max-width:40em;margin:14px 0 0;font-size:17px;opacity:.88;max-height:120px;overflow:hidden;transition:max-height .6s,opacity .4s,margin .6s}
+#sub{margin:12px 0 0;font-size:13px;opacity:.7}
+body:not([data-tab=find]) .hero{padding:22px 22px 80px}
+body:not([data-tab=find]) .hero h1{font-size:clamp(22px,2.6vw,30px)}
+body:not([data-tab=find]) .lede{max-height:0;opacity:0;margin:0}
+.hero h1,.lede,#sub{animation:rise .9s var(--ease) both}.lede{animation-delay:.12s}#sub{animation-delay:.24s}
+.hero i{position:absolute;right:9%;top:22%;width:240px;height:240px;border:2px solid rgba(127,227,238,.4);border-radius:50%;opacity:0;animation:ring 7s ease-out infinite}
+.hero i:nth-of-type(2){animation-delay:2.3s}.hero i:nth-of-type(3){animation-delay:4.6s}
+.wave{position:absolute;left:0;bottom:-1px;width:200%;height:64px;animation:flow 16s linear infinite}
+.wave.b{height:80px;animation-duration:26s;animation-direction:reverse}.wave path{fill:var(--bg)}.wave.b path{fill:rgba(255,255,255,.13)}
+/* filters */
+.bar{display:flex;flex-wrap:wrap;gap:12px;align-items:end;width:calc(100% - 44px);max-width:1456px;margin:-46px auto 0;position:relative;z-index:5;padding:14px 18px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh)}
+.bar label{display:flex;flex-direction:column;font-size:12px;font-weight:600;color:var(--mute);gap:4px}
+select,input,button{font:inherit;padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:var(--card);color:var(--ink);transition:border-color .2s,box-shadow .2s,transform .2s,filter .2s}
+input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(10,127,143,.16);outline:none}
+button{position:relative;overflow:hidden;cursor:pointer;font-weight:500}button:hover{transform:translateY(-1px);border-color:var(--accent)}button:active{transform:none}
+button.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-color:transparent}
+body[data-tab] nav button{border-radius:99px}nav button:hover{transform:none;border:0}
+.rip{position:absolute;border-radius:50%;background:rgba(10,127,143,.28);transform:scale(0);animation:rp .6s ease-out forwards;pointer-events:none}.primary .rip{background:rgba(255,255,255,.45)}
+main{padding:22px;max-width:1500px;margin:auto}
+.view{display:none}.view.on{display:block;animation:viewIn .55s var(--ease)}
+.grid{display:grid;gap:16px}.g2{grid-template-columns:repeat(auto-fit,minmax(min(420px,100%),1fr))}.g4{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:20px}
+.card h3{margin:0 0 10px;font-size:18px;letter-spacing:-.01em}
+#v-find>.card:first-child{padding:26px;box-shadow:var(--sh)}
+#lq{font-size:17px;padding:15px 18px;border-radius:14px}#lGo{padding:15px 26px;border-radius:14px}#lMe{padding:15px 18px;border-radius:14px}
+.kpi{position:relative;overflow:hidden;border-radius:14px;padding:16px 18px;color:#fff;animation:rise .6s var(--ease) both}
+.kpi:nth-child(2){animation-delay:.08s}.kpi:nth-child(3){animation-delay:.16s}.kpi:nth-child(4){animation-delay:.24s}
+.kpi::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.3) 50%,transparent 70%);transform:translateX(-130%);animation:shine 1.3s .5s both}
+.kpi small{display:block;opacity:.9;font-size:12.5px}.kpi b{font-size:32px;display:block;line-height:1.15;letter-spacing:-.02em}
+#lRes>*{animation:rise .65s var(--ease) both}#lRes>:nth-child(2){animation-delay:.07s}#lRes>:nth-child(3){animation-delay:.14s}#lRes>:nth-child(4){animation-delay:.21s}#lRes>:nth-child(5){animation-delay:.28s}
+#map,#locmap{border-radius:12px;border:1px solid var(--line)}#map{height:540px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left}
+th{background:var(--card);box-shadow:inset 0 -2px 0 var(--soft);position:sticky;top:0;color:var(--mute);font-weight:600}tbody tr,tr{transition:background .2s}tr:hover td{background:var(--soft)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}.scroll{max-height:440px;overflow:auto}
+.pill{display:inline-block;padding:2px 10px;border-radius:99px;color:#fff;font-size:12px;font-weight:600}
+.note{color:var(--mute);font-size:13px}.ok{color:#1a8a4a;font-weight:600}.bad{color:#c0392b;font-weight:600}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0}
+a.link{color:var(--accent);cursor:pointer;text-decoration:none;border-bottom:1px solid currentColor;transition:opacity .2s}a.link:hover{opacity:.7}
+.chips span{background:var(--soft);border-radius:99px;padding:4px 12px;margin:3px;display:inline-block;font-size:13px;animation:pop .35s var(--ease)}.chips span b{cursor:pointer;margin-left:8px}
+.steps{margin-top:18px;display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.steps>div{padding:18px;border-radius:var(--r);background:var(--card);border:1px solid var(--line)}
+.steps b{display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;margin-bottom:8px}.steps p{margin:0}
+.scale{display:flex;height:12px;border-radius:99px;overflow:hidden;margin:10px 0 6px}.scale i{flex:1}.scale+div{display:flex;justify-content:space-between;font-size:12px;color:var(--mute)}
+#lRes[style*="block"]+.steps{display:none}
+.af{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-top:14px}.af label{display:flex;flex-direction:column;font-size:12px;font-weight:600;color:var(--mute);gap:4px}.presets{margin-top:6px}
+.hits div{padding:9px 12px;border-radius:10px;cursor:pointer;transition:background .2s}.hits div:hover{background:var(--soft)}.hits .note{cursor:default}.hits{margin-top:4px}
+footer{padding:26px 22px;color:var(--mute);font-size:13px;max-width:1500px;margin:auto}
+#aOut.fade{animation:viewIn .45s var(--ease)}
+body[data-tab=home] .hero,body[data-tab=home] .bar,body[data-tab=home] main{display:none}
+#prog{position:fixed;top:0;left:0;right:0;height:3px;z-index:2100;background:#7fe3ee;transform:scaleX(0);transform-origin:left}
+#v-home{overflow:hidden}.brand{cursor:pointer}
+.h-hero{position:relative;min-height:calc(100vh - 58px);display:flex;align-items:center;color:#fff;background:radial-gradient(120% 90% at 20% 0,#0b7a8a 0,#04252f 62%);overflow:hidden;padding:70px 22px 130px}
+.blob{position:absolute;border-radius:50%;filter:blur(70px);opacity:.45;animation:drift 14s ease-in-out infinite alternate;translate:calc(var(--mx,0)*34px) calc(var(--my,0)*34px - var(--sy,0)*.16px)}
+.b1{width:440px;height:440px;background:#17b3c4;left:-90px;top:-70px}.b2{width:380px;height:380px;background:#2563eb;right:-60px;top:30%;animation-delay:-5s}.b3{width:300px;height:300px;background:#7fe3ee;left:38%;bottom:-120px;animation-delay:-9s}
+#bubbles span{position:absolute;bottom:-40px;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.07);animation:bub linear infinite}
+.h-in{position:relative;z-index:2;max-width:1200px;width:100%;margin:auto}
+.badge{display:inline-block;padding:7px 16px;border-radius:99px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);font-size:13px;margin-bottom:20px}
+.h-in h1{font-size:clamp(38px,7vw,82px);line-height:1.02;letter-spacing:-.03em;margin:0;max-width:11em}
+.split .w{display:inline-block;overflow:hidden;vertical-align:top;padding-bottom:.12em}.split .w>span{display:inline-block;transform:translateY(110%);animation:up .9s var(--ease) forwards;animation-delay:calc(var(--i)*.09s + .2s)}
+.h-lede{font-size:clamp(16px,1.6vw,19px);max-width:36em;opacity:.9;margin:16px 0 0}.rot{display:inline-block;color:#7fe3ee;transition:opacity .35s,transform .35s}.rot.out{opacity:0;transform:translateY(8px)}
+.cta{display:flex;gap:14px;flex-wrap:wrap;margin-top:28px}.big{padding:15px 30px;border-radius:99px;font-weight:600;font-size:16px}
+.amber{background:#ffb454;color:#2a1700;border-color:transparent}.ghost{background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.35)}
+.hnav{display:flex;gap:22px;margin-top:22px}.hnav a{color:rgba(255,255,255,.8);cursor:pointer;font-size:14px;position:relative}.hnav a::after{content:"";position:absolute;left:0;right:0;bottom:-3px;height:2px;background:#7fe3ee;transform:scaleX(0);transition:transform .3s}.hnav a:hover::after{transform:scaleX(1)}
+.hstats{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-top:46px}
+.hstats>div{padding:16px 18px;border-radius:16px;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(8px)}.hstats b{font:700 36px "Bricolage Grotesque",sans-serif;display:block;line-height:1.1}.hstats small{opacity:.8}
+.marq{overflow:hidden;white-space:nowrap;background:#04252f;color:#bfeff4;padding:15px 0;position:relative;z-index:3}.marq>div{display:inline-block;animation:mq 70s linear infinite}.marq:hover>div{animation-play-state:paused}.marq span{margin:0 26px;opacity:.85}.marq span::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#7fe3ee;margin-right:14px;vertical-align:middle}
+.hs{padding:96px 22px;max-width:1244px;margin:auto;scroll-margin-top:66px}.hs h2,.cta-band h2{font:700 clamp(28px,4vw,46px)/1.1 "Bricolage Grotesque",sans-serif;letter-spacing:-.025em;margin:0 0 14px;max-width:17em}.lead{color:var(--mute);max-width:44em;font-size:17px;margin:0}
+.band{background:var(--card);border-block:1px solid var(--line)}
+.rv{opacity:0;transform:translateY(36px);filter:blur(6px);transition:opacity .9s var(--ease),transform .9s var(--ease),filter .9s var(--ease);transition-delay:var(--d,0s)}
+.rv[data-rv=left]{transform:translateX(-56px)}.rv[data-rv=right]{transform:translateX(56px)}.rv.in{opacity:1;transform:none;filter:none}
+.tilt{position:relative;transition:transform .25s ease-out;transform-style:preserve-3d}.tilt::before{content:"";position:absolute;inset:0;border-radius:inherit;background:radial-gradient(240px circle at var(--gx,50%) var(--gy,0),rgba(60,192,208,.22),transparent 60%);opacity:0;transition:opacity .3s;pointer-events:none}.tilt:hover::before{opacity:1}
+.fc{height:100%;padding:24px;border-radius:var(--r);background:var(--card);border:1px solid var(--line)}.fc svg{width:34px;height:34px;fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;margin-bottom:12px;transition:transform .5s}.fc:hover svg{transform:rotate(-8deg) scale(1.15)}.fc h3{margin:0 0 6px}.fc p{margin:0;color:var(--mute)}
+.feat>.rv{height:100%}
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:22px;position:relative}.flow::before{content:"";position:absolute;top:21px;left:4%;right:4%;height:2px;background:linear-gradient(90deg,var(--accent),#7fe3ee);transform:scaleX(0);transform-origin:left;transition:transform 1.8s var(--ease) .4s}.flow.in::before{transform:scaleX(1)}
+.dot{position:relative;display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--accent);color:#fff;font:700 18px "Bricolage Grotesque",sans-serif;margin-bottom:12px;box-shadow:0 0 0 6px var(--card)}.flow h3{margin:0 0 4px}.flow p{margin:0;color:var(--mute)}
+.bars>div{margin:14px 0}.bars>div>span:last-of-type{float:right;font-weight:600}.bars .t{height:12px;margin-top:6px;background:var(--soft);border-radius:99px;overflow:hidden}.bars .t i{display:block;height:100%;width:0;border-radius:99px;transition:width 1.5s var(--ease) .3s}.bars.in .t i{width:var(--w)}
+.ln path.l{fill:none;stroke:var(--accent);stroke-width:3;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;transition:stroke-dashoffset 2.2s ease .4s}.in .ln path.l{stroke-dashoffset:0}.ln circle{fill:var(--card);stroke:var(--accent);stroke-width:2.500;opacity:0;transition:opacity .4s calc(.4s + var(--k)*.28s)}.in .ln circle{opacity:1}.ln text{fill:var(--mute);font-size:12px;text-anchor:middle}
+.tm{text-align:center;padding:30px 18px;height:100%}.av{position:relative;width:92px;height:92px;border-radius:50%;margin:0 auto 16px;display:grid;place-items:center;font:700 30px "Bricolage Grotesque",sans-serif;color:#fff;background:conic-gradient(from 20deg,#0a7f8f,#3cc0d0,#065a67,#0a7f8f)}.av::after{content:"";position:absolute;inset:-7px;border-radius:50%;border:2px dashed var(--accent);animation:spin 16s linear infinite}
+.tm h3{margin:0}.role{margin:2px 0 8px;color:var(--accent);font-weight:600}.soc{display:flex;gap:8px;justify-content:center;margin-top:12px}.soc a{width:32px;height:32px;display:grid;place-items:center;border-radius:50%;border:1px solid var(--line);font-size:12px;color:var(--mute);cursor:pointer;transition:all .25s}.soc a:hover{background:var(--accent);color:#fff;transform:translateY(-3px)}
+.ci{display:grid;gap:18px}.ci small{color:var(--mute);display:block}.ci b{font-size:17px;font-weight:600}
+.fld{position:relative;margin-bottom:16px}.fld input,.fld textarea{width:100%;padding:22px 14px 8px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);font:inherit;resize:vertical}.fld label{position:absolute;left:15px;top:14px;color:var(--mute);pointer-events:none;transition:all .2s}.fld input:focus+label,.fld input:not(:placeholder-shown)+label,.fld textarea:focus+label,.fld textarea:not(:placeholder-shown)+label{top:5px;font-size:11px;color:var(--accent)}
+.cok{display:none;align-items:center;gap:12px;margin-top:16px}.cok.on{display:flex;animation:viewIn .5s}.cok svg{width:44px;height:44px;fill:none;stroke:#1a8a4a;stroke-width:3}.cok circle,.cok path{stroke-dasharray:160;stroke-dashoffset:160;animation:dr 1s .1s forwards}
+.cta-band{text-align:center;color:#fff;padding:80px 22px;background:linear-gradient(120deg,#04252f,#0a7f8f,#04252f);background-size:220% 100%;animation:gs 9s linear infinite}.cta-band h2{margin:0 auto 22px}
+@keyframes up{to{transform:none}}@keyframes drift{to{transform:translate(50px,40px) scale(1.15)}}@keyframes mq{to{transform:translateX(-50%)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes gs{to{background-position:-220% 0}}@keyframes dr{to{stroke-dashoffset:0}}
+@keyframes bub{0%{transform:translateY(0) translateX(0);opacity:0}15%{opacity:1}100%{transform:translateY(-110vh) translateX(40px);opacity:0}}
+@media (max-width:700px){.hs{padding:64px 16px}.h-hero{padding:50px 16px 110px}.flow::before{display:none}}
+.tg{grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr))}.tm.h{display:flex;align-items:center;gap:18px;text-align:left;padding:22px}.tm.h .av{margin:0;width:68px;height:68px;font-size:22px;flex:none}.tm.h .av::after{inset:-5px}.tm.h .role{margin:4px 0 0}.guide{margin:30px 0 0;color:var(--mute);font-size:17px}.guide b{color:var(--ink)}.brand{text-transform:uppercase;letter-spacing:.07em;font-size:19px}
+@keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@keyframes viewIn{from{opacity:0;transform:translateY(10px) scale(.995)}to{opacity:1;transform:none}}
+@keyframes shine{to{transform:translateX(130%)}}@keyframes flow{to{transform:translateX(-50%)}}
+@keyframes ring{0%{transform:scale(.3);opacity:.8}100%{transform:scale(2.3);opacity:0}}
+@keyframes bob{50%{transform:translateY(-3px)}}@keyframes rp{to{transform:scale(1);opacity:0}}@keyframes pop{from{transform:scale(.6);opacity:0}}
+@media (max-width:700px){.topbar{flex-wrap:wrap;padding:8px 12px;gap:8px}nav{margin:0;width:100%}main{padding:12px}.bar{width:calc(100% - 20px);padding:12px}.bar label,.bar input,.bar select{width:100%;max-width:none!important}#map{height:380px}.hero{padding:34px 16px 90px}.hero i{display:none}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media print{.topbar,.hero,nav,.bar,footer,.steps,#lq,#lGo,#lMe,#lCsv,#lPrint{display:none!important}.view{display:none!important}.view.on{display:block!important}}
+</style>
+</head>
+<body data-tab="home"><div id="prog"></div>
+<div class="topbar"><div class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8 8 5 11.5 5 15a7 7 0 0 0 14 0c0-3.500-3-7-7-13Z" fill="#7fe3ee"/><path d="M8.500 15.500a3.500 3.500 0 0 0 3.500 3.500" stroke="#04252f" stroke-width="1.800" fill="none" stroke-linecap="round"/></svg>AquaWatch</div>
+<nav id="tabs" aria-label="Sections"><button data-v="home" class="on">Home</button><button data-v="find">Find a location</button><button data-v="adv">Custom search</button><button data-v="overview">Map overview</button><button data-v="river">River</button><button data-v="station">Station</button><button data-v="compare">Compare</button><button data-v="about">About</button></nav></div>
+<header class="hero"><i></i><i></i><i></i><div><h1>How clean is the river near you?</h1><p class="lede">Search any place in India to see its water quality score, what the water can safely be used for, and how it has changed over the years.</p><p id="sub">Loading data…</p></div><svg class="wave b" viewBox="0 0 2400 80" preserveAspectRatio="none" aria-hidden="true"><path d="M0 40C150 0 450 0 600 40S1050 80 1200 40S1650 0 1800 40S2250 80 2400 40V80H0Z"/></svg><svg class="wave" viewBox="0 0 2400 80" preserveAspectRatio="none" aria-hidden="true"><path d="M0 40C150 0 450 0 600 40S1050 80 1200 40S1650 0 1800 40S2250 80 2400 40V80H0Z"/></svg></header>
+<div class="bar">
+  <label>Year<select id="fYear"></select></label>
+  <label>State<select id="fState"></select></label>
+  <label>River<select id="fRiver" style="max-width:260px"></select></label>
+  <label>Filter stations<input id="fSearch" placeholder="name or code (map &amp; tables)" style="width:210px"></label>
+  <button id="bReset">Reset</button>
+  <span style="flex:1"></span>
+  <button id="bCsv">⬇ Data (CSV)</button>
+  <a id="xlsx" href="jalnetra_data.xlsx" download><button>⬇ Excel (all data)</button></a>
+</div>
+
+<section id="v-home" class="view on">
+<div class="h-hero" id="hHero"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i><div id="bubbles"></div>
+ <div class="h-in"><span class="badge rv">Built on official CPCB river monitoring data</span>
+  <h1 class="split">Know the health of India’s rivers.</h1>
+  <p class="h-lede rv" style="--d:.5s">AquaWatch turns monitoring reports into one clear score, a map, and a plain answer to a simple question: what is this water safe for?</p>
+  <p class="h-lede rv" style="--d:.65s">Check if a river is suitable for <b class="rot" id="rot">bathing</b></p>
+  <div class="cta rv" style="--d:.8s"><button class="big amber" data-go="find">Find a location</button><button class="big ghost" data-go="overview">Explore the map</button></div>
+  <div class="hnav rv" style="--d:.9s"><a data-sc="h-about">About</a><a data-sc="h-data">The data</a><a data-sc="h-team">Team</a><a data-sc="h-contact">Contact</a></div>
+  <div class="hstats">
+   <div class="rv" style="--d:1s"><b data-k="st">0</b><small>monitoring stations</small></div><div class="rv" style="--d:1.1s"><b data-k="rv">0</b><small>named rivers</small></div>
+   <div class="rv" style="--d:1.2s"><b data-k="rd">0</b><small>station-year records</small></div><div class="rv" style="--d:1.3s"><b data-k="ok" data-suf="%">0</b><small id="okl">usable after treatment</small></div></div></div>
+ <svg class="wave b" viewBox="0 0 2400 80" preserveAspectRatio="none"><path d="M0 40C150 0 450 0 600 40S1050 80 1200 40S1650 0 1800 40S2250 80 2400 40V80H0Z"/></svg><svg class="wave" viewBox="0 0 2400 80" preserveAspectRatio="none"><path d="M0 40C150 0 450 0 600 40S1050 80 1200 40S1650 0 1800 40S2250 80 2400 40V80H0Z"/></svg></div>
+<div class="marq" aria-hidden="true"><div id="marq"></div></div>
+
+<div class="hs" id="h-about"><h2 class="rv">Water data, made readable.</h2>
+ <p class="lead rv" style="--d:.1s">AquaWatch is a student project that makes river water-quality data easy to read. Every station gets a quality score (WQI), a CPCB class from A to E and a BOD priority. For a place with no station, it estimates values from the nearest stations on the same river and tells you how confident the estimate is.</p>
+ <div class="grid g4 feat" style="margin-top:34px">
+  <div class="rv" style="--d:.1s"><div class="tilt fc"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m16 16 5 5"/></svg><h3>Search any place</h3><p>Type a town, river, station name or coordinates, or use your location.</p></div></div>
+  <div class="rv" style="--d:.2s"><div class="tilt fc"><svg viewBox="0 0 24 24"><path d="M12 3C8 9 5.500 12 5.500 15a6.500 6.500 0 0 0 13 0C18.500 12 16 9 12 3Z"/></svg><h3>See what it is safe for</h3><p>Drinking after treatment, bathing, fisheries or irrigation, checked against CPCB limits.</p></div></div>
+  <div class="rv" style="--d:.3s"><div class="tilt fc"><svg viewBox="0 0 24 24"><path d="M3 17l5-6 4 4 8-10"/></svg><h3>Follow the change</h3><p>Compare stations and rivers across every reporting year.</p></div></div>
+  <div class="rv" style="--d:.4s"><div class="tilt fc"><svg viewBox="0 0 24 24"><path d="M12 4v12m0 0-4-4m4 4 4-4M5 20h14"/></svg><h3>Take it with you</h3><p>Download CSV, Excel or a printable PDF report for any station or river.</p></div></div></div></div>
+
+<div class="band"><div class="hs"><h2 class="rv">How AquaWatch works</h2>
+ <div class="flow rv" style="margin-top:34px">
+  <div><b class="dot">1</b><h3>Collect</h3><p>Annual CPCB / NWMP river water-quality reports.</p></div><div><b class="dot">2</b><h3>Clean and place</h3><p>Station names are tidied and mapped to coordinates.</p></div>
+  <div><b class="dot">3</b><h3>Score</h3><p>WQI, CPCB class and BOD priority for every station-year.</p></div><div><b class="dot">4</b><h3>Share</h3><p>Maps, charts, reports and downloads for anyone.</p></div></div></div></div>
+
+<div class="hs" id="h-data"><h2 class="rv" id="dTitle">Rivers at a glance</h2>
+ <div class="grid g2" style="margin-top:30px"><div class="card rv bars" id="dBars" data-rv="left"></div><div class="card rv" data-rv="right"><h3>Median WQI by year</h3><div id="dLine"></div><p class="note">Lower is cleaner. Each point is the median of all stations reporting that year.</p></div></div>
+ <div class="cta rv" style="margin-top:24px"><button class="primary big" data-go="adv">Search the data yourself</button></div></div>
+
+<div class="band"><div class="hs" id="h-team"><h2 class="rv">Project team</h2><p class="lead rv" style="--d:.1s">Group 3</p>
+ <div class="grid tg" style="margin-top:34px"><div class="rv" style="--d:0.1s"><div class="card tm h tilt"><div class="av">SP</div><div><h3>Shaurya Priyam</h3><p class="role">Roll no. 2024CHB1084</p></div></div></div><div class="rv" style="--d:0.2s"><div class="card tm h tilt"><div class="av">SS</div><div><h3>Sumit Singh</h3><p class="role">Roll no. 2024CHB1085</p></div></div></div><div class="rv" style="--d:0.3s"><div class="card tm h tilt"><div class="av">AK</div><div><h3>Aniket Kumar</h3><p class="role">Roll no. 2024CHB1058</p></div></div></div><div class="rv" style="--d:0.4s"><div class="card tm h tilt"><div class="av">KK</div><div><h3>Krishna Kant</h3><p class="role">Roll no. 2024CHB1071</p></div></div></div><div class="rv" style="--d:0.5s"><div class="card tm h tilt"><div class="av">RP</div><div><h3>Ratnadeep Paul</h3><p class="role">Roll no. 2024CHB1075</p></div></div></div><div class="rv" style="--d:0.6s"><div class="card tm h tilt"><div class="av">NR</div><div><h3>Nitin Raj</h3><p class="role">Roll no. 2024CHB1074</p></div></div></div></div>
+ <p class="guide rv" style="--d:.7s">Under the guidance of <b>Dr. Kishant Kumar</b></p></div></div>
+
+<div class="hs" id="h-contact"><h2 class="rv">Get in touch</h2><p class="lead rv" style="--d:.1s">Questions, corrections or ideas? Send us a message.</p>
+ <div class="grid g2" style="margin-top:30px"><div class="rv" data-rv="left"><div class="card ci"><div><small>Email</small><b data-c="email"></b></div><div><small>Location</small><b data-c="place"></b></div><div><small>Phone</small><b data-c="phone"></b></div><p class="note">Temporary contact details. Replace them in the CONTACT line of the script.</p></div></div>
+  <div class="card rv" data-rv="right"><form id="cForm" autocomplete="off"><div class="fld"><input id="cN" placeholder=" " required><label for="cN">Your name</label></div><div class="fld"><input id="cE" type="email" placeholder=" " required><label for="cE">Your email</label></div><div class="fld"><textarea id="cM" rows="4" placeholder=" " required></textarea><label for="cM">Message</label></div><button class="primary big" type="submit">Send message</button>
+   <div id="cOk" class="cok"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="24"/><path d="M14 27l8 8 16-17"/></svg><b>Thanks, your email app should open now.</b></div></form></div></div></div>
+
+<div class="cta-band"><h2 class="rv">Is the river near you clean?</h2><div class="rv" style="--d:.15s"><button class="big amber" data-go="find">Check a location now</button></div></div>
+</section>
+<main>
+<section id="v-find" class="view">
+  <div class="card"><h3>Find water quality at any place</h3>
+    <div class="row" style="gap:8px;flex-wrap:wrap"><input id="lq" placeholder="Station name, place name, or latitude, longitude" style="flex:1;min-width:260px" autocomplete="off"><button class="primary" id="lGo">Search</button><button id="lMe" title="Use my current position">📍 Use my location</button></div>
+    <div class="note" style="margin-top:6px">Try: <a class="link" data-ex="Sabarmati">Sabarmati</a> · <a class="link" data-ex="23.0225, 72.5714">23.0225, 72.5714</a> · <a class="link" data-ex="Vapi, Gujarat">Vapi, Gujarat</a> · <a class="link" data-ex="Kanpur">Kanpur</a>. The year and filters above apply. Places without a monitoring station get an <b>interpolated estimate</b> from the nearest stations on the same river.</div>
+    <div id="lMsg" style="margin-top:10px"></div></div>
+  <div id="lRes" style="display:none">
+    <div class="grid g4" id="lKpis" style="margin-top:14px"></div>
+    <div class="card" style="margin-top:14px"><div id="lBasis"></div></div>
+    <div class="grid g2" style="margin-top:14px"><div class="card"><h3>Map</h3><div id="locmap" style="height:380px;border-radius:10px;border:1px solid var(--line)"></div></div>
+      <div class="card"><h3>Nearest monitoring stations</h3><div class="scroll"><table id="lNear"></table></div></div></div>
+    <div class="grid g2" style="margin-top:14px"><div class="card"><h3>Parameters vs standards <span class="note" id="lPN"></span></h3><div class="scroll"><table id="lParams"></table></div></div>
+      <div class="card"><h3>What can this water be used for? (worst case)</h3><table id="lUse"></table><ul id="lAdv" style="margin:8px 0 0 18px;padding:0"></ul></div></div>
+    <div class="card" style="margin-top:14px"><div class="row"><h3 style="margin:0">Past years at the nearest stations</h3><span style="flex:1"></span><button id="lCsv">⬇ Result (CSV)</button><button id="lPrint">🖨 Print / save as PDF</button></div><div id="lTrend"></div></div>
+  </div>
+<div class="steps"><div><b>1</b><p><strong>Search a place</strong><br><span class="note">Type a town, river, station name or coordinates, or tap “Use my location”.</span></p></div>
+<div><b>2</b><p><strong>Read the score</strong><br><span class="note">The water quality index (WQI) runs from 0 (pristine) to 100+ (severely polluted).</span><span class="scale"><i style="background:#1a9850"></i><i style="background:#91cf60"></i><i style="background:#fdae61"></i><i style="background:#f46d43"></i><i style="background:#a50026"></i></span><span style="display:flex;justify-content:space-between;font-size:12px" class="note"><span>Excellent</span><span>Severe</span></span></p></div>
+<div><b>3</b><p><strong>Check what it is safe for</strong><br><span class="note">See if the water suits drinking after treatment, bathing, fisheries or irrigation.</span></p></div></div>
+</section>
+<section id="v-adv" class="view">
+  <div class="card"><h3>Custom search</h3>
+    <div class="row"><input id="aQ" placeholder="River or station names. Use commas for several, e.g. Sabarmati, Mahi, Vapi" style="flex:1;min-width:260px" autocomplete="off"><button class="primary" id="aGo">Search</button><button id="aReset">Reset</button></div>
+    <div class="note presets">Quick picks: <a class="link" data-p="polluted">Most polluted major rivers</a> · <a class="link" data-p="clean">Cleanest stations</a> · <a class="link" data-p="small">Small streams in Gujarat</a> · <a class="link" data-p="sab">Sabarmati + Mahi + Narmada</a></div>
+    <div class="af">
+      <label>Search in<select id="aIn"><option value="all">Rivers and stations</option><option value="river">River names only</option><option value="station">Station names only</option><option value="code">Station code</option></select></label>
+      <label>Stream type<select id="aType"><option value="">All streams</option><option value="major">Major named rivers</option><option value="minor">Other small streams</option></select></label>
+      <label>Year<select id="aYear"></select></label>
+      <label>State<select id="aState"><option value="">All states</option></select></label>
+      <label>CPCB class<select id="aCls"><option value="">Any</option><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option><option>Below E</option></select></label>
+      <label>Water quality<select id="aCat"><option value="">Any</option><option>Excellent</option><option>Good</option><option>Poor</option><option>Very poor</option><option>Severely polluted</option></select></label>
+      <label>BOD priority<select id="aPri"><option value="">Any</option><option>I</option><option>II</option><option>III</option><option>IV</option><option>V</option><option>Not polluted</option></select></label>
+      <label>WQI from<input id="aMin" type="number" min="0" placeholder="0"></label>
+      <label>WQI to<input id="aMax" type="number" min="0" placeholder="150"></label>
+      <label>Sort by<select id="aSort"><option value="wd">Most polluted first</option><option value="wa">Cleanest first</option><option value="n">Station name</option><option value="r">River</option></select></label>
+    </div></div>
+  <div class="card" style="margin-top:16px"><div class="row"><h3 id="aSum" style="margin:0">Results</h3><span style="flex:1"></span><button id="aCsv">⬇ Results (CSV)</button></div><div id="aOut" class="scroll" style="max-height:560px"></div></div>
+</section>
+<section id="v-overview" class="view">
+  <div class="grid g4" id="kpis"></div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><h3>Map — stations coloured by water quality index <span class="note" id="mapnote"></span></h3><div id="map"></div></div>
+    <div class="grid"><div class="card"><h3>Share of stations by quality category, by year</h3><div id="chShare"></div></div>
+      <div class="card"><h3>Most polluted stations (selected year)</h3><div class="scroll" style="max-height:260px"><table id="tWorst"></table></div></div></div>
+  </div>
+</section>
+
+<section id="v-river" class="view">
+  <div class="card" style="margin-bottom:16px"><h3>Find a river</h3><div class="row"><input id="rSearch" list="rvList" placeholder="Type a river name, e.g. Ganga, Yamuna, Sabarmati" style="flex:1;min-width:240px" autocomplete="off"><button class="primary" id="rGo">Show river</button></div><datalist id="rvList"></datalist><div id="rHits" class="hits"></div></div>
+  <div class="card"><div class="row"><h3 id="rTitle" style="margin:0">River</h3><span style="flex:1"></span><button id="bRiverCsv">⬇ River data (CSV)</button><button class="primary" id="bRiverRep">⬇ River report (PDF)</button></div><div class="grid g4" id="rKpis"></div></div>
+  <div class="grid g2" style="margin-top:14px"><div class="card"><h3>Along the river (stations in river order)</h3><div id="chProfile"></div></div>
+  <div class="card"><h3>Change over the years</h3><div id="chRTrend"></div><div id="chHeat"></div></div></div>
+  <div class="card" style="margin-top:14px"><h3>Stations</h3><div class="scroll"><table id="tRiver"></table></div></div>
+</section>
+
+<section id="v-station" class="view">
+  <div class="card" style="margin-bottom:16px"><h3>Find a station</h3><div class="row"><input id="sSearch" list="stList" placeholder="Type part of a station name or its code" style="flex:1;min-width:240px" autocomplete="off"><button class="primary" id="sGo">Show station</button></div><div id="sHits" class="hits"></div></div>
+  <div class="card"><div class="row"><h3 id="sTitle" style="margin:0">Pick a station</h3><span style="flex:1"></span><button id="bStCsv">⬇ Station data (CSV)</button><button class="primary" id="bStRep">⬇ Station report (PDF)</button></div>
+    <div class="note" id="sMeta"></div><div class="grid g4" id="sKpis" style="margin-top:8px"></div></div>
+  <div class="grid g2" style="margin-top:14px"><div class="card"><h3>Parameters vs standards</h3><div class="scroll"><table id="tParams"></table></div></div>
+    <div class="card"><h3>What can this water be used for? (worst case)</h3><table id="tUse"></table><ul id="adv" style="margin:8px 0 0 18px;padding:0"></ul></div></div>
+  <div class="card" style="margin-top:14px"><h3>Year-by-year</h3><div id="chStation"></div><div class="scroll"><table id="tHist"></table></div></div>
+</section>
+
+<section id="v-compare" class="view">
+  <div class="card"><h3>Compare stations</h3>
+    <div class="row"><input id="cSearch" list="stList" placeholder="type a station name or code, press Enter" style="width:340px"><datalist id="stList"></datalist>
+    <select id="cParam"><option value="w">WQI (worst)</option><option value="2">DO min</option><option value="9">BOD max</option><option value="7">Conductivity max</option><option value="13">Fecal coliform max</option><option value="11">Nitrate max</option></select>
+    <button id="cClear">Clear</button></div><div class="chips" id="cChips"></div><div id="chCompare"></div></div>
+  <div class="card" style="margin-top:14px"><h3>Compare rivers (median WQI by year)</h3><div id="chRivers"></div><div class="note">Uses the rivers with the most stations; filter by state above.</div></div>
+</section>
+
+<section id="v-about" class="view"><div class="card" id="aboutBox"></div></section>
+</main>
+<footer id="foot"></footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const WQI=[[25,'Excellent','#1a9850'],[50,'Good','#91cf60'],[75,'Poor','#fdae61'],[100,'Very poor','#f46d43'],[1e9,'Severely polluted','#a50026']];
+const CLSCOL={'A':'#1a9850','B':'#91cf60','C':'#d9ef8b','D':'#fdae61','E':'#f46d43','Below E':'#a50026','No data':'#9e9e9e'};
+const PRICOL={'I':'#a50026','II':'#d73027','III':'#f46d43','IV':'#fdae61','V':'#fee08b','Not polluted':'#1a9850','No data':'#9e9e9e'};
+const CLASSDESC={A:'Drinking water without conventional treatment (after disinfection)',B:'Outdoor bathing',C:'Drinking water after conventional treatment',D:'Wildlife and fisheries',E:'Irrigation, industrial cooling, controlled waste disposal'};
+const PARAMS=[['DO','Dissolved oxygen (mg/L)',2,3,'≥ 5'],['BOD','BOD (mg/L)',8,9,'≤ 3'],['pH','pH',4,5,'6.5 – 8.5'],['EC','Conductivity (µmho/cm)',6,7,'≤ 2250'],['NO3','Nitrate-N (mg/L)',10,11,'≤ 10'],['FC','Fecal coliform (MPN/100 mL)',12,13,'≤ 500'],['TC','Total coliform (MPN/100 mL)',14,15,'≤ 5000'],['Temp','Temperature (°C)',0,1,'–']];
+const cat=w=>w==null?['No data','#9e9e9e']:(WQI.find(b=>w<=b[0])||WQI[4]).slice(1);
+const f=(x,d=1)=>x==null?'–':Number(x).toFixed(d);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let D,ST=new Map(),RD=[],BYST=new Map(),BYYEAR=new Map(),map,layer,cmp=[],cur={station:null};
+const plotCfg={displayModeBar:false,responsive:true};
+const lay=(o={})=>Object.assign({margin:{t:30,l:46,r:14,b:44},font:{family:'system-ui',size:11,color:getComputedStyle(document.body).color},paper_bgcolor:'rgba(0,0,0,0)',plot_bgcolor:'rgba(0,0,0,0)',legend:{orientation:'h',y:-0.2}},o);
+
+function vec(r){const v=r.v,lo=v[4],hi=v[5];const ph=lo==null?hi:hi==null?lo:(Math.abs(lo-7)>Math.abs(hi-7)?lo:hi);
+  return {DO:v[2],BOD:v[9],EC:v[7],NO3:v[11],FC:v[13],TC:v[15],Temp:v[1],pH:ph,pHlo:lo,pHhi:hi};}
+function classOK(c,w){const n=x=>x==null, ok=(x,t)=>n(x)||t(x);const ph=ok(w.pHlo,x=>x>=6.5)&&ok(w.pHhi,x=>x<=8.5);
+  return {A:ok(w.DO,x=>x>=6)&&ok(w.BOD,x=>x<=2)&&ok(w.TC,x=>x<=50)&&ph,B:ok(w.DO,x=>x>=5)&&ok(w.BOD,x=>x<=3)&&ok(w.TC,x=>x<=500)&&ph,C:ok(w.DO,x=>x>=4)&&ok(w.BOD,x=>x<=3)&&ok(w.TC,x=>x<=5000)&&ph,
+   D:ok(w.DO,x=>x>=4)&&ph,E:ok(w.EC,x=>x<=2250)&&ok(w.pHlo,x=>x>=6)&&ok(w.pHhi,x=>x<=8.5)}[c];}
+const statusOf=(k,x)=>x==null?'n/a':({DO:x>=5,BOD:x<=3,pH:x>=6.5&&x<=8.5,EC:x<=2250,NO3:x<=10,FC:x<=500,TC:x<=5000,Temp:true}[k]?'ok':'bad');
+
+async function load(){
+  D=await (await fetch('data.json')).json();D.meta.disclaimer=String(D.meta.disclaimer).replace(/JalNetra/g,'AquaWatch');
+  D.stations.forEach(s=>ST.set(s.c,s));
+  RD=D.readings.map(a=>({y:a[0],c:a[1],v:a.slice(2,18),w:a[18],t:a[19],cls:D.classes[a[20]],pri:D.priorities[a[21]]}));
+  RD.forEach(r=>{(BYST.get(r.c)||BYST.set(r.c,[]).get(r.c)).push(r);(BYYEAR.get(r.y)||BYYEAR.set(r.y,[]).get(r.y)).push(r);});
+  BYST.forEach(a=>a.sort((x,y)=>x.y-y.y));
+  $('sub').textContent=`${D.stations.length.toLocaleString()} stations · ${D.rivers.length} rivers/streams · ${D.meta.years.join(', ')} · source: ${D.meta.source}`;
+  $('fYear').innerHTML=D.meta.years.slice().reverse().map(y=>`<option>${y}</option>`).join('');
+  $('fState').innerHTML='<option value="">All states</option>'+D.states.map((s,i)=>`<option value="${i}">${esc(s)}</option>`).join('');
+  const rc={};D.stations.forEach(s=>rc[s.r]=(rc[s.r]||0)+1);
+  $('fRiver').innerHTML='<option value="">All rivers</option>'+D.rivers.map((r,i)=>[r.name,i]).sort((a,b)=>rc[b[1]]-rc[a[1]]).map(([n,i])=>`<option value="${i}">${esc(n)} (${rc[i]})</option>`).join('');
+  $('stList').innerHTML=D.stations.slice(0,6000).map(s=>`<option value="${s.c} · ${esc(s.n)}">`).join('');
+  $('foot').innerHTML=esc(D.meta.disclaimer);
+  $('aboutBox').innerHTML=`<h3>About this site</h3><p>${esc(D.meta.disclaimer)}</p><p><b>Index.</b> The AquaWatch WQI runs from 0 (pristine) to 100+ (severely polluted): Excellent ≤ 25, Good ≤ 50, Poor ≤ 75, Very poor ≤ 100, Severely polluted &gt; 100. It combines dissolved oxygen, BOD, fecal coliform, conductivity, pH and nitrate, using CPCB class limits as anchors.</p><p><b>Worst case</b> uses the lowest DO and the highest value of the other parameters reported in the year; <b>typical</b> uses the midpoint of min and max.</p><p><b>CPCB classes</b> A–E follow the Designated Best Use criteria. <b>BOD priority</b> I–V follows CPCB's polluted-stretch priority (I: BOD &gt; 30, II: 20–30, III: 10–20, IV: 6–10, V: 3–6 mg/L).</p><p><b>Map positions</b> marked “approx.” are estimates; stations without a position appear in tables and charts only.</p>`;
+  initMap(); bind(); render();
+}
+function filtered(year){
+  const y=+($('fYear').value),st=$('fState').value,rv=$('fRiver').value,q=$('fSearch').value.trim().toLowerCase();
+  return (BYYEAR.get(year??y)||[]).filter(r=>{const s=ST.get(r.c);return (st===''||s.s==st)&&(rv===''||s.r==rv)&&(!q||s.n.toLowerCase().includes(q)||String(s.c)===q);});
+}
+function kpi(t,v,s,c){return `<div class="kpi" style="background:${c}"><small>${t}</small><b>${v}</b><small>${s}</small></div>`}
+function render(){renderOverview(); if($('v-river').classList.contains('on'))renderRiver(); if($('v-compare').classList.contains('on'))renderCompare();}
+
+/* ---------- overview ---------- */
+function initMap(){map=L.map('map').setView([22.5,80],5);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles © Esri',maxZoom:16}).addTo(map);layer=L.layerGroup().addTo(map);}
+function renderOverview(){
+  const y=+$('fYear').value,rows=filtered();const w=rows.map(r=>r.w).filter(x=>x!=null).sort((a,b)=>a-b);const med=w.length?w[Math.floor(w.length/2)]:null;
+  const ac=rows.filter(r=>['A','B','C'].includes(r.cls)).length,p12=rows.filter(r=>['I','II'].includes(r.pri)).length;
+  $('kpis').innerHTML=kpi('Stations ('+y+')',rows.length.toLocaleString(),'with data this year','#0b6fa4')+kpi('Median WQI',f(med,0),cat(med)[0],cat(med)[1])+
+    kpi('Class A–C (usable after treatment)',rows.length?Math.round(100*ac/rows.length)+'%':'–',ac+' stations','#2c7fb8')+kpi('Priority I–II stretches',p12,'BOD > 20 mg/L','#a50026');
+  layer.clearLayers();let n=0,pts=[];
+  rows.forEach(r=>{const s=ST.get(r.c);if(s.lat==null)return;n++;const [cn,col]=cat(r.w);
+    const m=L.circleMarker([s.lat,s.lon],{radius:7,color:'#222',weight:1,fillColor:col,fillOpacity:s.q==='a'?.45:.95,dashArray:s.q==='a'?'3':null}).addTo(layer);pts.push([s.lat,s.lon]);
+    m.bindTooltip(`${esc(s.n)}<br>WQI ${f(r.w,0)} · ${cn}`+(s.q==='a'?'<br><i>position approx.</i>':''));m.on('click',()=>openStation(s.c));});
+  $('mapnote').textContent=n?`(${n} of ${rows.length} stations have a map position)`:'(no station positions yet for this selection — add coordinates to see them here)';
+  if(pts.length)map.fitBounds(pts,{maxZoom:11,padding:[20,20]});setTimeout(()=>map.invalidateSize(),50);
+  // share by year
+  const ids=new Set(rows.map(r=>r.c)),cats=WQI.map(b=>b[1]),traces=cats.map((c,i)=>({type:'bar',name:c,marker:{color:WQI[i][2]},x:D.meta.years.map(String),y:D.meta.years.map(yy=>{const a=(BYYEAR.get(yy)||[]).filter(r=>ids.has(r.c));return a.length?100*a.filter(r=>cat(r.w)[0]===c).length/a.length:0})}));
+  Plotly.react('chShare',traces,lay({barmode:'stack',height:300,xaxis:{type:'category'},yaxis:{title:'% of stations'}}),plotCfg);
+  const worst=rows.filter(r=>r.w!=null).sort((a,b)=>b.w-a.w).slice(0,12);
+  $('tWorst').innerHTML='<tr><th>Station</th><th>River</th><th class="num">WQI</th><th class="num">BOD max</th></tr>'+worst.map(r=>{const s=ST.get(r.c);return `<tr><td><a class="link" onclick="openStation(${r.c})">${esc(s.n.slice(0,44))}</a></td><td>${esc(D.rivers[s.r].name.slice(0,18))}</td><td class="num"><span class="pill" style="background:${cat(r.w)[1]}">${f(r.w,0)}</span></td><td class="num">${f(r.v[9])}</td></tr>`}).join('');
+}
+
+/* ---------- river ---------- */
+function curRiver(){const v=$('fRiver').value;return v===''?null:+v}
+function renderRiver(){
+  const ri=curRiver();if(ri==null){$('rTitle').textContent='Search for a river above to begin';['rKpis','tRiver'].forEach(i=>$(i).innerHTML='');['chProfile','chRTrend','chHeat'].forEach(i=>Plotly.purge(i));return}
+  const y=+$('fYear').value,name=D.rivers[ri].name,rows=(BYYEAR.get(y)||[]).filter(r=>ST.get(r.c).r==ri).sort((a,b)=>ST.get(a.c).o-ST.get(b.c).o);
+  $('rTitle').textContent=`${name} — ${y}`;
+  if(!rows.length){$('rKpis').innerHTML='<div class="note">No data for this river in '+y+'.</div>';return}
+  const w=rows.map(r=>r.w).filter(x=>x!=null).sort((a,b)=>a-b),med=w[Math.floor(w.length/2)],worst=rows.slice().sort((a,b)=>b.w-a.w)[0];
+  $('rKpis').innerHTML=kpi('Stations',rows.length,'monitored in '+y,'#0b6fa4')+kpi('Median WQI',f(med,0),cat(med)[0],cat(med)[1])+kpi('Worst station',f(worst.w,0),esc(ST.get(worst.c).n.slice(0,28)),cat(worst.w)[1])+kpi('Priority I–II',rows.filter(r=>['I','II'].includes(r.pri)).length,'BOD > 20 mg/L','#a50026');
+  const x=rows.map((r,i)=>i+1),names=rows.map(r=>ST.get(r.c).n);
+  Plotly.react('chProfile',[{type:'bar',x,y:rows.map(r=>r.w),marker:{color:rows.map(r=>cat(r.w)[1])},text:names,hovertemplate:'%{text}<br>WQI %{y:.0f}<extra></extra>',xaxis:'x',yaxis:'y',showlegend:false},
+   {type:'scatter',mode:'lines+markers',x,y:rows.map(r=>r.v[2]),name:'DO min',text:names,line:{color:'#2c7fb8'},xaxis:'x',yaxis:'y2'},
+   {type:'scatter',mode:'lines+markers',x,y:rows.map(r=>r.v[9]),name:'BOD max',text:names,line:{color:'#d95f0e'},xaxis:'x',yaxis:'y3'}],
+   lay({height:620,xaxis:{title:'station order along the river (≈ upstream → downstream)',anchor:'y3'},yaxis:{title:'WQI',domain:[.68,1]},yaxis2:{title:'DO min mg/L',domain:[.36,.62]},yaxis3:{title:'BOD max mg/L',type:'log',domain:[0,.3]},
+   shapes:[{type:'line',xref:'paper',x0:0,x1:1,yref:'y2',y0:5,y1:5,line:{color:'#c0392b',dash:'dash',width:1}},{type:'line',xref:'paper',x0:0,x1:1,yref:'y3',y0:3,y1:3,line:{color:'#c0392b',dash:'dash',width:1}}]}),plotCfg);
+  const by=D.meta.years.map(yy=>{const a=(BYYEAR.get(yy)||[]).filter(r=>ST.get(r.c).r==ri&&r.w!=null).map(r=>r.w).sort((p,q)=>p-q);return a.length?{yy,med:a[Math.floor(a.length/2)],max:a[a.length-1]}:null}).filter(Boolean);
+  Plotly.react('chRTrend',[{type:'scatter',mode:'lines+markers',x:by.map(b=>b.yy),y:by.map(b=>b.med),name:'median WQI'},{type:'scatter',mode:'lines+markers',x:by.map(b=>b.yy),y:by.map(b=>b.max),name:'worst station',line:{color:'#a50026'}}],lay({height:260,xaxis:{type:'category'}}),plotCfg);
+  const codes=[...new Set(RD.filter(r=>ST.get(r.c).r==ri).map(r=>r.c))].sort((a,b)=>ST.get(a).o-ST.get(b).o).slice(0,45);
+  Plotly.react('chHeat',[{type:'heatmap',x:D.meta.years.map(String),y:codes.map(c=>ST.get(c).n.slice(0,38)+' ['+c+']'),z:codes.map(c=>D.meta.years.map(yy=>{const r=(BYST.get(c)||[]).find(q=>q.y===yy);return r?r.w:null})),colorscale:[[0,'#1a9850'],[.25,'#91cf60'],[.5,'#fdae61'],[.75,'#f46d43'],[1,'#a50026']],zmin:0,zmax:120,colorbar:{title:'WQI'}}],lay({height:Math.max(260,codes.length*18+90),margin:{l:230,t:20,b:30,r:10},yaxis:{autorange:'reversed'}}),plotCfg);
+  $('tRiver').innerHTML='<tr><th>Code</th><th>Station</th><th>State</th><th class="num">WQI</th><th>Class</th><th>Priority</th><th class="num">DO min</th><th class="num">BOD max</th><th class="num">EC max</th><th class="num">FC max</th></tr>'+rows.map(r=>{const s=ST.get(r.c);return `<tr><td>${r.c}</td><td><a class="link" onclick="openStation(${r.c})">${esc(s.n)}</a></td><td>${esc(D.states[s.s]||'')}</td><td class="num"><span class="pill" style="background:${cat(r.w)[1]}">${f(r.w,0)}</span></td><td><span class="pill" style="background:${CLSCOL[r.cls]};color:${['A','B','C','D'].includes(r.cls)?'#000':'#fff'}">${r.cls}</span></td><td>${r.pri}</td><td class="num">${f(r.v[2])}</td><td class="num">${f(r.v[9])}</td><td class="num">${f(r.v[7],0)}</td><td class="num">${f(r.v[13],0)}</td></tr>`}).join('');
+}
+
+/* ---------- station ---------- */
+function openStation(c){cur.station=c;showTab('station');renderStation()}
+function renderStation(){
+  const c=cur.station;if(c==null)return;const s=ST.get(c),hist=BYST.get(c)||[];if(!hist.length)return;
+  const y=+$('fYear').value,r=hist.find(h=>h.y===y)||hist[hist.length-1],w=vec(r);
+  $('sTitle').textContent=s.n;$('sMeta').textContent=`Code ${c} · ${D.states[s.s]||''} · ${D.rivers[s.r].name} · data years: ${hist.map(h=>h.y).join(', ')} · showing ${r.y}`+(s.lat!=null?` · position ${s.lat.toFixed(3)}, ${s.lon.toFixed(3)}${s.q==='a'?' (approx.)':''}`:'');
+  $('sKpis').innerHTML=kpi('WQI · worst case',f(r.w,0),cat(r.w)[0],cat(r.w)[1])+kpi('WQI · typical',f(r.t,0),cat(r.t)[0],cat(r.t)[1])+kpi('CPCB class',r.cls,CLASSDESC[r.cls]?CLASSDESC[r.cls].slice(0,38):'fails all classes',CLSCOL[r.cls])+kpi('BOD priority',r.pri,'I = most urgent',PRICOL[r.pri]);
+  $('tParams').innerHTML='<tr><th>Parameter</th><th class="num">Min</th><th class="num">Max</th><th class="num">Worst case</th><th>Standard</th><th>Status</th></tr>'+PARAMS.map(([k,l,a,b,std])=>{const v=w[k],st=statusOf(k,v);return `<tr><td>${l}</td><td class="num">${f(r.v[a],2)}</td><td class="num">${f(r.v[b],2)}</td><td class="num">${f(v,2)}</td><td>${std}</td><td class="${st}">${st==='ok'?'✔ within':st==='bad'?'✖ exceeds':'n/a'}</td></tr>`}).join('');
+  $('tUse').innerHTML='<tr><th>Designated use</th><th>Suitable?</th></tr>'+'ABCDE'.split('').map(k=>`<tr><td><b>${k}</b> – ${CLASSDESC[k]}</td><td class="${classOK(k,w)?'ok':'bad'}">${classOK(k,w)?'✔ yes':'✖ no'}</td></tr>`).join('');
+  const adv=[];if(w.BOD>3)adv.push('BOD above 3 mg/L: <b>no spare assimilative capacity</b> — new organic discharges need strict treatment / zero-liquid-discharge review.');if(w.DO<4)adv.push('DO falls below 4 mg/L at times: aquatic life is stressed; avoid discharges that add oxygen demand.');
+  if(w.EC>2250)adv.push('High conductivity (salinity): unsuitable for irrigation or cooling-tower make-up without treatment; scaling/corrosion risk.');if(w.FC>500)adv.push('Fecal coliform above the bathing limit: disinfect before any human-contact use.');
+  $('adv').innerHTML=(adv.length?adv:['No major exceedance in the reported parameters.']).map(a=>`<li>${a}</li>`).join('');
+  const yrs=hist.map(h=>String(h.y)),band=(i,j,name,col)=>({type:'scatter',mode:'lines+markers',x:yrs,y:hist.map(h=>h.v[j]),name:name+' max',line:{color:col}});
+  const mk=(title,traces,ax,ref)=>({data:traces,layout:lay({title:{text:title,font:{size:12}},height:230,margin:{t:30,l:44,r:8,b:30},showlegend:false,xaxis:{type:'category'},yaxis:ax||{},shapes:ref!=null?[{type:'line',xref:'paper',x0:0,x1:1,y0:ref,y1:ref,line:{color:'#c0392b',dash:'dash',width:1}}]:[]})});
+  const charts=[mk('WQI (worst; lower = cleaner)',[{type:'bar',x:yrs,y:hist.map(h=>h.w),marker:{color:hist.map(h=>cat(h.w)[1])}}]),
+    mk('Dissolved oxygen min–max (mg/L)',[{type:'scatter',mode:'lines+markers',x:yrs,y:hist.map(h=>h.v[2]),line:{color:'#2c7fb8'}},{type:'scatter',mode:'lines',x:yrs,y:hist.map(h=>h.v[3]),line:{color:'#9ecae1',dash:'dot'}}],{},5),
+    mk('BOD max (mg/L, log)',[{type:'scatter',mode:'lines+markers',x:yrs,y:hist.map(h=>h.v[9]),line:{color:'#d95f0e'}}],{type:'log'},3),
+    mk('Fecal coliform max (log)',[{type:'scatter',mode:'lines+markers',x:yrs,y:hist.map(h=>h.v[13]),line:{color:'#7b3294'}}],{type:'log'},500)];
+  $('chStation').innerHTML='<div class="grid g4" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">'+charts.map((_,i)=>`<div id="sc${i}"></div>`).join('')+'</div>';
+  charts.forEach((ch,i)=>Plotly.newPlot('sc'+i,ch.data,ch.layout,plotCfg));
+  $('tHist').innerHTML='<tr><th>Year</th><th class="num">WQI</th><th>Class</th><th>Priority</th><th class="num">DO min</th><th class="num">BOD max</th><th class="num">EC max</th><th class="num">FC max</th><th class="num">pH</th></tr>'+hist.map(h=>`<tr><td>${h.y}</td><td class="num"><span class="pill" style="background:${cat(h.w)[1]}">${f(h.w,0)}</span></td><td>${h.cls}</td><td>${h.pri}</td><td class="num">${f(h.v[2])}</td><td class="num">${f(h.v[9])}</td><td class="num">${f(h.v[7],0)}</td><td class="num">${f(h.v[13],0)}</td><td class="num">${f(h.v[4])}–${f(h.v[5])}</td></tr>`).join('');
+}
+
+/* ---------- compare ---------- */
+function renderCompare(){
+  $('cChips').innerHTML=cmp.map(c=>`<span>${esc(ST.get(c).n.slice(0,40))} [${c}]<b onclick="cmp=cmp.filter(x=>x!=${c});renderCompare()">×</b></span>`).join('');
+  const p=$('cParam').value,val=r=>p==='w'?r.w:r.v[+p];
+  Plotly.react('chCompare',cmp.map(c=>({type:'scatter',mode:'lines+markers',name:ST.get(c).n.slice(0,30),x:(BYST.get(c)||[]).map(r=>r.y),y:(BYST.get(c)||[]).map(val)})),lay({height:360,xaxis:{type:'category'},yaxis:{type:['9','7','13','11'].includes(p)?'log':'linear'}}),plotCfg);
+  const st=$('fState').value,cnt={};D.stations.forEach(s=>{if(st===''||s.s==st)cnt[s.r]=(cnt[s.r]||0)+1});
+  const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,8).map(e=>+e[0]);
+  Plotly.react('chRivers',top.map(ri=>{const pts=D.meta.years.map(yy=>{const a=(BYYEAR.get(yy)||[]).filter(r=>ST.get(r.c).r===ri&&r.w!=null).map(r=>r.w).sort((p,q)=>p-q);return a.length?[yy,a[Math.floor(a.length/2)]]:null}).filter(Boolean);return {type:'scatter',mode:'lines+markers',name:D.rivers[ri].name,x:pts.map(q=>q[0]),y:pts.map(q=>q[1])}}),lay({height:340,xaxis:{type:'category'},yaxis:{title:'median WQI'}}),plotCfg);
+}
+
+/* ---------- downloads ---------- */
+function csv(rows){return rows.map(r=>r.map(v=>{v=v==null?'':String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(',')).join('\n')}
+function save(name,text,type='text/csv'){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
+const HEAD=['Year','Station_Code','Station_Name','State','River','Temp_Min','Temp_Max','DO_Min','DO_Max','pH_Min','pH_Max','Conductivity_Min','Conductivity_Max','BOD_Min','BOD_Max','Nitrate_Min','Nitrate_Max','Fecal_Coliform_Min','Fecal_Coliform_Max','Total_Coliform_Min','Total_Coliform_Max','WQI_worst','WQI_typical','CPCB_class','BOD_priority'];
+const rowOf=r=>{const s=ST.get(r.c);return [r.y,r.c,s.n,D.states[s.s]||'',D.rivers[s.r].name,...r.v,r.w,r.t,r.cls,r.pri]};
+function downloadRows(name,rows){save(name,csv([HEAD,...rows.map(rowOf)]))}
+async function report(title,sections,chartDivs){
+  const imgs=[];for(const id of chartDivs){try{imgs.push(await Plotly.toImage(id,{format:'png',width:900,height:340}))}catch(e){}}
+  const w=window.open('','_blank');if(!w){alert('Allow pop-ups to open the report, then use Print → Save as PDF.');return}
+  w.document.write(`<!doctype html><title>${esc(title)}</title><style>body{font:12px/1.4 Arial;margin:18px;color:#111}h1{font-size:18px}h2{font-size:14px;margin:14px 0 4px}table{border-collapse:collapse;width:100%;font-size:11px}td,th{border:1px solid #bbb;padding:3px 6px;text-align:left}th{background:#e8eef5}img{width:100%;margin:6px 0}.k{display:inline-block;border:1px solid #bbb;padding:5px 10px;margin:0 6px 6px 0;border-radius:6px}small{color:#555}@media print{button{display:none}}</style><button onclick="print()">Print / Save as PDF</button><h1>${esc(title)}</h1>${sections}${imgs.map(i=>`<img src="${i}">`).join('')}<p><small>${esc(D.meta.disclaimer)}</small></p>`);
+  w.document.close();setTimeout(()=>w.print(),700);
+}
+function tableHtml(head,rows){return '<table><tr>'+head.map(h=>`<th>${h}</th>`).join('')+'</tr>'+rows.map(r=>'<tr>'+r.map(c=>`<td>${c}</td>`).join('')+'</tr>').join('')+'</table>'}
+function stationReport(){const c=cur.station;if(c==null)return;const s=ST.get(c),hist=BYST.get(c),y=+$('fYear').value,r=hist.find(h=>h.y===y)||hist[hist.length-1],w=vec(r);
+  const secs=`<p>Code ${c} · ${esc(D.states[s.s]||'')} · River ${esc(D.rivers[s.r].name)} · ${r.y}</p><div><span class="k">WQI worst <b>${f(r.w,0)}</b> (${cat(r.w)[0]})</span><span class="k">WQI typical <b>${f(r.t,0)}</b></span><span class="k">CPCB class <b>${r.cls}</b></span><span class="k">BOD priority <b>${r.pri}</b></span></div>
+  <h2>Parameters ${r.y}</h2>${tableHtml(['Parameter','Min','Max','Worst case','Standard','Status'],PARAMS.map(([k,l,a,b,std])=>[l,f(r.v[a],2),f(r.v[b],2),f(w[k],2),std,statusOf(k,w[k])==='ok'?'within':statusOf(k,w[k])==='bad'?'EXCEEDS':'n/a']))}
+  <h2>History</h2>${tableHtml(['Year','WQI','Class','Priority','DO min','BOD max','EC max','FC max'],hist.map(h=>[h.y,f(h.w,0),h.cls,h.pri,f(h.v[2]),f(h.v[9]),f(h.v[7],0),f(h.v[13],0)]))}
+  <h2>Suitability (worst case)</h2>${tableHtml(['Designated use','Suitable'],'ABCDE'.split('').map(k=>[k+' – '+CLASSDESC[k],classOK(k,w)?'yes':'no']))}`;
+  report('AquaWatch station report — '+s.n,secs,['sc0','sc1','sc2','sc3'])}
+function riverReport(){const ri=curRiver();if(ri==null)return;const y=+$('fYear').value,rows=(BYYEAR.get(y)||[]).filter(r=>ST.get(r.c).r==ri).sort((a,b)=>ST.get(a.c).o-ST.get(b.c).o);
+  const secs=`<p>${rows.length} stations · ${y}</p>`+tableHtml(['Code','Station','WQI','Class','Priority','DO min','BOD max','EC max','FC max'],rows.map(r=>[r.c,esc(ST.get(r.c).n),f(r.w,0),r.cls,r.pri,f(r.v[2]),f(r.v[9]),f(r.v[7],0),f(r.v[13],0)]));
+  report(`AquaWatch river report — ${D.rivers[ri].name}, ${y}`,secs,['chProfile','chRTrend'])}
+
+/* ---------- wiring ---------- */
+
+/* ---------- find a location ---------- */
+const hav=(a,b,c,d)=>{const t=x=>x*Math.PI/180,h=Math.sin(t(c-a)/2)**2+Math.cos(t(a))*Math.cos(t(c))*Math.sin(t(d-b)/2)**2;return 12742*Math.asin(Math.sqrt(h))};
+let lmap,lmLayer,LAST=null;
+const LOGK=['BOD','EC','FC','TC'];
+function initLocMap(){if(lmap)return;lmap=L.map('locmap').setView([22.5,80],5);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',{attribution:'Tiles © Esri',maxZoom:16}).addTo(lmap);lmLayer=L.layerGroup().addTo(lmap);}
+function lmsg(h){$('lMsg').innerHTML=h;$('lRes').style.display='none'}
+function classOf(w){for(const k of 'ABCDE')if(classOK(k,w))return k;return 'Below E'}
+function priOf(b){return b==null?'No data':b>30?'I':b>20?'II':b>10?'III':b>6?'IV':b>3?'V':'Not polluted'}
+function lookup(q){
+  const m=q.match(/^\s*(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)\s*$/);
+  if(m){const la=+m[1],lo=+m[2];if(la>=6&&la<=37.5&&lo>=67&&lo<=98.5)return analysePoint(la,lo,`${la.toFixed(4)}, ${lo.toFixed(4)}`);
+    return lmsg('⚠ These coordinates are outside India. Enter latitude, then longitude (e.g. 23.0225, 72.5714).');}
+  const ql=q.toLowerCase().trim(),toks=ql.split(/[\s,]+/).filter(t=>t.length>1);
+  const sm=/^\d+$/.test(ql)?D.stations.filter(s=>String(s.c)===ql):D.stations.filter(s=>{const n=s.n.toLowerCase();return toks.length&&toks.every(t=>n.includes(t))}).slice(0,12);
+  const rm=D.rivers.map((r,i)=>[r,i]).filter(([r])=>ql.length>2&&r.name.toLowerCase()===ql);
+  if(rm.length){$('fRiver').value=rm[0][1];render();showTab('river');return}
+  if(sm.length){
+    lmsg(`<b>${sm.length>=12?'12+':sm.length} station(s) match “${esc(q)}”:</b><div style="margin-top:6px">`+sm.map(s=>`<div style="padding:4px 0;border-bottom:1px solid var(--line)">${esc(s.n)} <span class="note">· ${esc(D.rivers[s.r].name)} · ${esc(D.states[s.s]||'')} · code ${s.c}</span> <a class="link" onclick="openStation(${s.c})">station report</a>${s.lat!=null?` · <a class="link" onclick="analysePoint(${s.lat},${s.lon},'${esc(s.n).replace(/'/g,'')}')">analyse around it</a>`:''}</div>`).join('')+`</div><div class="note" style="margin-top:6px">Not what you meant? <a class="link" onclick="geocode('${esc(q).replace(/'/g,'')}')">Search “${esc(q)}” as a place name</a>.</div>`);return}
+  geocode(q);
+}
+async function geocode(q){
+  lmsg('Looking up the place…');
+  try{const r=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=in&q='+encodeURIComponent(q),{headers:{'Accept':'application/json'}});
+    const j=await r.json();if(!j.length)return lmsg(`No place or station found for “${esc(q)}”. Try adding the state, or enter latitude, longitude.`);
+    analysePoint(+j[0].lat,+j[0].lon,j[0].display_name.split(',').slice(0,3).join(','));}
+  catch(e){lmsg('Could not look up the place name (no internet, or the lookup service is busy). You can still enter latitude, longitude or a station name.')}
+}
+function pickEstimate(la,lo,rows){
+  const L2=rows.map(r=>{const s=ST.get(r.c);return {r,s,d:hav(la,lo,s.lat,s.lon)}}).sort((a,b)=>a.d-b.d);
+  if(!L2.length)return null;const A=L2[0];
+  const near=L2.slice(0,6);
+  const base={near,A};
+  if(A.d>150)return {...base,mode:'none',conf:'None'};
+  if(A.d<=2)return {...base,mode:'measured',parts:[[A,1]],conf:'High'};
+  const k=Math.cos(la*Math.PI/180),vx=(la2,lo2)=>[(lo2-lo)*k,la2-la];
+  const same=L2.filter(x=>x!==A&&x.s.r===A.s.r&&x.d<=150);
+  const pa=vx(A.s.lat,A.s.lon);
+  const B=same.find(x=>{const pb=vx(x.s.lat,x.s.lon);return pa[0]*pb[0]+pa[1]*pb[1]<0});   // opposite side of the point => point lies between A and B
+  if(B){const w=[[A,1/A.d],[B,1/B.d]],t=w[0][1]+w[1][1];return {...base,mode:'interp',parts:w.map(([x,v])=>[x,v/t]),B,conf:A.d<=25&&B.d<=60?'Medium':'Low'};}
+  return {...base,mode:'nearest',parts:[[A,1]],conf:A.d<=25?'Medium':'Low'};
+}
+function blend(parts){
+  const out={};const get=(r,k)=>vec(r)[k];
+  for(const k of ['DO','BOD','EC','NO3','FC','TC','Temp','pH']){
+    const v=parts.map(([x,w])=>[get(x.r,k),w]).filter(a=>a[0]!=null&&(!LOGK.includes(k)||a[0]>0));
+    if(!v.length){out[k]=null;continue}const tw=v.reduce((s,a)=>s+a[1],0);
+    out[k]=LOGK.includes(k)?Math.exp(v.reduce((s,a)=>s+Math.log(a[0])*a[1],0)/tw):v.reduce((s,a)=>s+a[0]*a[1],0)/tw;}
+  out.pHlo=out.pHhi=out.pH;
+  const wq=parts.filter(([x])=>x.r.w!=null);out.WQI=wq.length?wq.reduce((s,[x,w])=>s+x.r.w*w,0)/wq.reduce((s,[x,w])=>s+w,0):null;
+  return out;
+}
+function analysePoint(la,lo,label){
+  initLocMap();const y=+$('fYear').value;
+  const rows=(BYYEAR.get(y)||[]).filter(r=>{const s=ST.get(r.c);return s.lat!=null});
+  if(!rows.length){lmsg(`No station in ${y} has a map position yet, so distance-based results are not available. Search by station name instead, or add coordinates (see About).`);return}
+  const E=pickEstimate(la,lo,rows);lmsg(`Showing results for <b>${esc(label)}</b> (${la.toFixed(4)}, ${lo.toFixed(4)}) · year ${y}`);
+  $('lRes').style.display='block';
+  lmLayer.clearLayers();L.marker([la,lo]).addTo(lmLayer).bindTooltip('Your location').openTooltip();
+  const pts=[[la,lo]];
+  E.near.forEach((x,i)=>{pts.push([x.s.lat,x.s.lon]);L.circleMarker([x.s.lat,x.s.lon],{radius:8,color:'#222',weight:1,fillColor:cat(x.r.w)[1],fillOpacity:x.s.q==='a'?.5:.95}).addTo(lmLayer).bindTooltip(`${esc(x.s.n)}<br>${x.d.toFixed(1)} km · WQI ${f(x.r.w,0)}`).on('click',()=>openStation(x.s.c));
+    if(i<2)L.polyline([[la,lo],[x.s.lat,x.s.lon]],{color:'#0b6fa4',weight:1,dashArray:'4'}).addTo(lmLayer);});
+  lmap.fitBounds(pts.slice(0,4),{maxZoom:12,padding:[25,25]});setTimeout(()=>{lmap.invalidateSize();lmap.fitBounds(pts.slice(0,4),{maxZoom:12,padding:[25,25]})},120);
+  $('lNear').innerHTML='<tr><th>Station</th><th>River</th><th class="num">km</th><th class="num">WQI</th><th>Class</th></tr>'+E.near.map(x=>`<tr><td><a class="link" onclick="openStation(${x.s.c})">${esc(x.s.n.slice(0,46))}</a></td><td>${esc(D.rivers[x.s.r].name.slice(0,16))}</td><td class="num">${x.d.toFixed(1)}</td><td class="num"><span class="pill" style="background:${cat(x.r.w)[1]}">${f(x.r.w,0)}</span></td><td>${x.r.cls}</td></tr>`).join('');
+  let W=null,basis='',cls,pri;
+  if(E.mode==='none'){basis=`<b>No estimate.</b> The nearest monitoring station is <b>${E.A.d.toFixed(0)} km</b> away (${esc(E.A.s.n)}), too far for a trustworthy value. Nearby stations are listed instead.`;
+    $('lKpis').innerHTML='';$('lParams').innerHTML='';$('lUse').innerHTML='';$('lAdv').innerHTML='';$('lPN').textContent='';}
+  else{
+    W=blend(E.parts);cls=E.mode==='measured'?E.A.r.cls:classOf(W);pri=E.mode==='measured'?E.A.r.pri:priOf(W.BOD);
+    const [cn,cc]=cat(W.WQI);
+    $('lKpis').innerHTML=kpi('WQI · worst case',f(W.WQI,0),cn,cc)+kpi('CPCB class',cls,CLASSDESC[cls]?CLASSDESC[cls].slice(0,38):'fails all classes',CLSCOL[cls])+kpi('BOD priority',pri,'I = most urgent',PRICOL[pri])+kpi('Basis',E.mode==='measured'?'Measured':E.mode==='interp'?'Interpolated':'Nearest station',E.conf==='High'?'high confidence':E.conf.toLowerCase()+' confidence','#455a64');
+    const cl={High:'ok',Medium:'',Low:'bad'}[E.conf];
+    if(E.mode==='measured')basis=`The point is <b>${E.A.d.toFixed(1)} km</b> from <b>${esc(E.A.s.n)}</b> — its measured values are used.`;
+    else if(E.mode==='interp')basis=`<b>Interpolated</b> on the ${esc(D.rivers[E.A.s.r].name)} between <b>${esc(E.A.s.n)}</b> (${E.A.d.toFixed(1)} km, weight ${(E.parts[0][1]*100).toFixed(0)}%) and <b>${esc(E.B.s.n)}</b> (${E.B.d.toFixed(1)} km, weight ${(E.parts[1][1]*100).toFixed(0)}%). DO, pH and nitrate are blended linearly; BOD, conductivity and coliforms in log space.`;
+    else basis=`The point lies beyond the monitored stretch, so the values of the nearest station, <b>${esc(E.A.s.n)}</b> (${E.A.d.toFixed(1)} km), are shown — not interpolated.`;
+    basis+=` Confidence: <b class="${cl}">${E.conf}</b>.`+(E.A.d>25?' ⚠ The nearest station is more than 25 km away; treat as indicative only.':'')+' This is an estimate for screening, not a measurement.';
+    $('lPN').textContent=E.mode==='measured'?'(measured, worst case)':'(estimated, worst case)';
+    $('lParams').innerHTML='<tr><th>Parameter</th><th class="num">Value</th><th>Standard</th><th>Status</th></tr>'+PARAMS.map(([k,l,a,b,std])=>{const v=W[k],st=statusOf(k,v);return `<tr><td>${l}</td><td class="num">${f(v,2)}</td><td>${std}</td><td class="${st}">${st==='ok'?'✔ within':st==='bad'?'✖ exceeds':'n/a'}</td></tr>`}).join('');
+    $('lUse').innerHTML='<tr><th>Designated use</th><th>Suitable?</th></tr>'+'ABCDE'.split('').map(k=>`<tr><td><b>${k}</b> – ${CLASSDESC[k]}</td><td class="${classOK(k,W)?'ok':'bad'}">${classOK(k,W)?'✔ yes':'✖ no'}</td></tr>`).join('');
+    const adv=[];if(W.BOD>3)adv.push('BOD above 3 mg/L: <b>no spare assimilative capacity</b> — new organic discharges need strict treatment.');if(W.DO<4)adv.push('DO below 4 mg/L at times: aquatic life is stressed.');
+    if(W.EC>2250)adv.push('High conductivity (salinity): unsuitable for irrigation or cooling-tower make-up without treatment.');if(W.FC>500)adv.push('Fecal coliform above the bathing limit: disinfect before human-contact use.');
+    $('lAdv').innerHTML=(adv.length?adv:['No major exceedance in the reported parameters.']).map(a=>`<li>${a}</li>`).join('');}
+  $('lBasis').innerHTML=basis;
+  const tr=E.near.slice(0,3).map(x=>{const h=BYST.get(x.s.c)||[];return {type:'scatter',mode:'lines+markers',name:x.s.n.slice(0,30),x:h.map(r=>String(r.y)),y:h.map(r=>r.w)}});
+  Plotly.react('lTrend',tr,lay({height:300,xaxis:{type:'category'},yaxis:{title:'WQI (worst; lower = cleaner)'}}),plotCfg);
+  LAST={label,la,lo,y,E,W,cls,pri};
+}
+function lastCsv(){if(!LAST)return;const {label,la,lo,y,E,W,cls,pri}=LAST;
+  const rows=[['Query',label],['Latitude',la],['Longitude',lo],['Year',y],['Basis',E.mode],['Confidence',E.conf],[],['Parameter','Value (worst case)']];
+  if(W){PARAMS.forEach(([k,l])=>rows.push([l,W[k]==null?'':W[k].toFixed(3)]));rows.push(['WQI (worst)',W.WQI==null?'':W.WQI.toFixed(1)],['CPCB class',cls],['BOD priority',pri]);}
+  rows.push([],['Nearest stations','Station_Code','River','Distance_km','WQI']);E.near.forEach(x=>rows.push([x.s.n,x.s.c,D.rivers[x.s.r].name,x.d.toFixed(1),x.r.w==null?'':x.r.w.toFixed(1)]));
+  save('aquawatch_location_result.csv',csv(rows));}
+function bindFind(){
+  const go=()=>{const q=$('lq').value.trim();if(q)lookup(q)};
+  $('lGo').onclick=go;$('lq').onkeydown=e=>{if(e.key==='Enter')go()};
+  document.querySelectorAll('[data-ex]').forEach(a=>a.onclick=()=>{$('lq').value=a.dataset.ex;go()});
+  $('lMe').onclick=()=>{if(!navigator.geolocation)return lmsg('Location is not available in this browser.');navigator.geolocation.getCurrentPosition(p=>{$('lq').value=p.coords.latitude.toFixed(5)+', '+p.coords.longitude.toFixed(5);go()},()=>lmsg('Could not get your location (permission denied).'))};
+  $('fYear').addEventListener('change',()=>{if(LAST&&$('v-find').classList.contains('on'))analysePoint(LAST.la,LAST.lo,LAST.label)});
+  $('lCsv').onclick=lastCsv;$('lPrint').onclick=()=>window.print();
+}
+function showTab(v){document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='v-'+v));document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
+  if(v==='river')renderRiver();if(v==='station')renderStation();if(v==='compare')renderCompare();if(v==='overview')setTimeout(()=>map.invalidateSize(),50);if(v==='find'&&lmap)setTimeout(()=>lmap.invalidateSize(),50)}
+function bind(){
+  bindFind();
+  document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.v));
+  ['fYear','fState','fRiver'].forEach(i=>$(i).onchange=()=>{render();if($('v-station').classList.contains('on'))renderStation()});
+  let t;$('fSearch').oninput=()=>{clearTimeout(t);t=setTimeout(()=>{render();const q=$('fSearch').value.trim().toLowerCase();if(q.length>2){const hit=D.stations.find(s=>String(s.c)===q||s.n.toLowerCase().includes(q));if(hit&&$('v-station').classList.contains('on')){cur.station=hit.c;renderStation()}}},250)};
+  $('bReset').onclick=()=>{$('fState').value='';$('fRiver').value='';$('fSearch').value='';$('fYear').selectedIndex=0;render()};
+  $('bCsv').onclick=()=>downloadRows('aquawatch_selection.csv',filtered());
+  $('bRiverCsv').onclick=()=>{const ri=curRiver();if(ri!=null)downloadRows('aquawatch_'+D.rivers[ri].name.replace(/\W+/g,'_')+'.csv',RD.filter(r=>ST.get(r.c).r==ri))};
+  $('bStCsv').onclick=()=>{if(cur.station!=null)downloadRows('aquawatch_station_'+cur.station+'.csv',BYST.get(cur.station))};
+  $('bStRep').onclick=stationReport;$('bRiverRep').onclick=riverReport;
+  $('cSearch').onchange=()=>{const m=$('cSearch').value.match(/^(\d+)/);if(m&&ST.has(+m[1])&&!cmp.includes(+m[1])&&cmp.length<8){cmp.push(+m[1]);}$('cSearch').value='';renderCompare()};
+  $('cParam').onchange=renderCompare;$('cClear').onclick=()=>{cmp=[];renderCompare()};
+}
+load().catch(e=>{$('sub').textContent='Could not load data.json — serve this folder with a web server (python -m http.server). '+e});
+</script>
+<script>
+(()=>{const RM=matchMedia('(prefers-reduced-motion:reduce)').matches,nav=document.getElementById('tabs'),ind=document.createElement('span');ind.className='ind';nav.prepend(ind);let last=null;
+function place(){const b=nav.querySelector('button.on');if(!b)return;ind.style.width=b.offsetWidth+'px';ind.style.transform='translateX('+b.offsetLeft+'px)';
+ if(last&&last!==b.dataset.v)scrollTo({top:0,behavior:RM?'auto':'smooth'});last=b.dataset.v;document.body.dataset.tab=last}
+new MutationObserver(place).observe(nav,{subtree:true,attributes:true,attributeFilter:['class']});addEventListener('resize',place);document.fonts&&document.fonts.ready.then(place);place();
+function count(el){const t=el.textContent.trim(),m=t.match(/^(\d[\d,]*)(\.\d+)?$/);if(!m||RM)return;const dec=m[2]?m[2].length-1:0,end=parseFloat(t.replace(/,/g,'')),t0=performance.now();
+ (function s(n){const p=Math.min(1,(n-t0)/900),v=end*(1-Math.pow(1-p,3));el.textContent=p<1?(dec?v.toFixed(dec):Math.round(v).toLocaleString()):t;if(p<1)requestAnimationFrame(s)})(t0)}
+new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType!==1)return;(n.matches('.kpi')?[n]:[...n.querySelectorAll('.kpi')]).forEach(k=>{const b=k.querySelector('b');b&&count(b)})}))).observe(document.querySelector('main'),{childList:true,subtree:true});
+document.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||RM||b.closest('nav'))return;const r=b.getBoundingClientRect(),d=Math.max(r.width,r.height)*2,s=document.createElement('span');s.className='rip';
+ s.style.cssText='width:'+d+'px;height:'+d+'px;left:'+(e.clientX-r.left-d/2)+'px;top:'+(e.clientY-r.top-d/2)+'px';b.appendChild(s);setTimeout(()=>s.remove(),600)});
+})();
+</script>
+<script>
+(()=>{const ok=()=>typeof D!=='undefined'&&D&&D.stations,tab=()=>document.body.dataset.tab;
+function fill(){if(!ok())return;const dl=$('rvList');if(!dl.children.length)dl.innerHTML=D.rivers.map(r=>'<option value="'+esc(r.name)+'">').join('')}
+function sMatch(q){q=q.trim().toLowerCase();const m=q.match(/^(\d+)\s*(·|$)/);if(m&&ST.has(+m[1]))return [ST.get(+m[1])];
+ const t=q.split(/[\s,·]+/).filter(Boolean);return t.length?D.stations.filter(s=>BYST.has(s.c)&&t.every(x=>s.n.toLowerCase().includes(x)||String(s.c)===x)):[]}
+function list(el,items,fn,lab){el.innerHTML=items.slice(0,12).map((x,i)=>'<div data-i="'+i+'">'+lab(x)+'</div>').join('')+(items.length>12?'<div class="note">'+(items.length-12)+' more. Keep typing to narrow down.</div>':'');
+ el.querySelectorAll('[data-i]').forEach(d=>d.onclick=()=>fn(items[+d.dataset.i]))}
+function runStation(q){if(!ok()||!q.trim())return;const el=$('sHits'),l=sMatch(q),go=s=>{el.innerHTML='';$('sSearch').value=s.n;openStation(s.c)};
+ if(!l.length){el.innerHTML='<div class="note">No station found for “'+esc(q)+'”. Try part of the name or the station code.</div>';return}
+ if(l.length===1)return go(l[0]);list(el,l,go,s=>esc(s.n)+' <span class="note">· '+esc(D.rivers[s.r].name)+' · code '+s.c+'</span>')}
+function runRiver(q){if(!ok()||!q.trim())return;const el=$('rHits'),ql=q.trim().toLowerCase(),all=D.rivers.map((r,i)=>[r,i]);
+ let rs=all.filter(([r])=>r.name.toLowerCase()===ql);if(!rs.length)rs=all.filter(([r])=>r.name.toLowerCase().includes(ql));
+ const pick=i=>{el.innerHTML='';$('rSearch').value=D.rivers[i].name;$('fRiver').value=i;render()};
+ if(rs.length===1)return pick(rs[0][1]);if(rs.length>1)return list(el,rs,x=>pick(x[1]),x=>esc(x[0].name));
+ const st=sMatch(q);if(st.length)return list(el,st,s=>pick(s.r),s=>esc(s.n)+' <span class="note">→ show the '+esc(D.rivers[s.r].name)+'</span>');
+ el.innerHTML='<div class="note">No river or station found for “'+esc(q)+'”. Try a shorter name.</div>'}
+function wire(id,go,btn,fn){const i=$(id);i.addEventListener('focus',fill);i.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();fn(i.value)}});
+ i.addEventListener('input',e=>{if(!e.inputType||e.inputType==='insertReplacementText')fn(i.value)});$(btn).onclick=()=>fn(i.value)}
+wire('rSearch',0,'rGo',runRiver);wire('sSearch',0,'sGo',runStation);
+$('fSearch').addEventListener('keydown',e=>{if(e.key!=='Enter')return;const q=e.target.value;if(tab()==='river'){$('rSearch').value=q;runRiver(q)}else if(tab()==='station'){$('sSearch').value=q;runStation(q)}});
+})();
+</script>
+<script>
+(()=>{let rows=[];const g=id=>document.getElementById(id);
+function init(){g('aYear').innerHTML=D.meta.years.slice().reverse().map(y=>'<option>'+y+'</option>').join('');
+ g('aState').innerHTML+=D.states.map((x,i)=>'<option value="'+i+'">'+esc(x)+'</option>').join('');run()}
+const w=setInterval(()=>{if(typeof D!=='undefined'&&D&&D.meta){clearInterval(w);init()}},200);
+const minor=n=>/^other streams/i.test(n);
+function run(){if(typeof D==='undefined'||!D||!D.meta)return;
+ const y=+g('aYear').value,terms=g('aQ').value.split(/[,;]+/).map(t=>t.trim().toLowerCase()).filter(Boolean),inn=g('aIn').value,ty=g('aType').value,st=g('aState').value,cl=g('aCls').value,ct=g('aCat').value,pr=g('aPri').value,
+  lo=g('aMin').value===''?null:+g('aMin').value,hi=g('aMax').value===''?null:+g('aMax').value;
+ rows=(BYYEAR.get(y)||[]).filter(r=>{const s=ST.get(r.c),rn=D.rivers[s.r].name,rl=rn.toLowerCase(),sn=s.n.toLowerCase();
+  if(terms.length&&!terms.some(t=>inn==='river'?rl.includes(t):inn==='station'?sn.includes(t):inn==='code'?String(s.c)===t:(rl.includes(t)||sn.includes(t)||String(s.c)===t)))return false;
+  if(ty==='major'&&minor(rn)||ty==='minor'&&!minor(rn))return false;if(st!==''&&s.s!=st)return false;if(cl&&r.cls!==cl)return false;if(ct&&cat(r.w)[0]!==ct)return false;if(pr&&r.pri!==pr)return false;
+  if(lo!=null&&!(r.w>=lo))return false;if(hi!=null&&!(r.w<=hi))return false;return true});
+ const so=g('aSort').value,nm=r=>ST.get(r.c).n,rv=r=>D.rivers[ST.get(r.c).r].name;
+ rows.sort(so==='wd'?(a,b)=>(b.w??-1)-(a.w??-1):so==='wa'?(a,b)=>(a.w??1e9)-(b.w??1e9):so==='n'?(a,b)=>nm(a).localeCompare(nm(b)):(a,b)=>rv(a).localeCompare(rv(b))||nm(a).localeCompare(nm(b)));
+ const ws=rows.map(r=>r.w).filter(x=>x!=null).sort((a,b)=>a-b),med=ws.length?ws[Math.floor(ws.length/2)]:null,nr=new Set(rows.map(r=>ST.get(r.c).r)).size;
+ g('aSum').textContent=rows.length+' station'+(rows.length===1?'':'s')+' in '+y+(rows.length?' · '+nr+' river/stream'+(nr===1?'':'s')+' · median WQI '+f(med,0):'');
+ const out=g('aOut');
+ out.innerHTML=rows.length?'<table><tr><th>Code</th><th>Station</th><th>River / stream</th><th>State</th><th class="num">WQI</th><th>Class</th><th>Priority</th><th class="num">DO min</th><th class="num">BOD max</th></tr>'+rows.slice(0,250).map(r=>{const s=ST.get(r.c);
+  return '<tr><td>'+r.c+'</td><td><a class="link" data-st="'+r.c+'">'+esc(s.n)+'</a></td><td><a class="link" data-rv="'+s.r+'">'+esc(D.rivers[s.r].name)+'</a></td><td>'+esc(D.states[s.s]||'')+'</td><td class="num"><span class="pill" style="background:'+cat(r.w)[1]+'">'+f(r.w,0)+'</span></td><td>'+r.cls+'</td><td>'+r.pri+'</td><td class="num">'+f(r.v[2])+'</td><td class="num">'+f(r.v[9])+'</td></tr>'}).join('')+'</table>'+(rows.length>250?'<div class="note" style="padding:8px">Showing the first 250. Narrow the search or download the CSV for all '+rows.length+'.</div>':'')
+  :'<div class="note" style="padding:14px">No stations match. Try fewer filters, another year, or a shorter name.</div>';
+ out.classList.remove('fade');void out.offsetWidth;out.classList.add('fade')}
+['aIn','aType','aYear','aState','aCls','aCat','aPri','aSort'].forEach(i=>g(i).addEventListener('change',run));
+let t;['aQ','aMin','aMax'].forEach(i=>g(i).addEventListener('input',()=>{clearTimeout(t);t=setTimeout(run,250)}));
+g('aQ').addEventListener('keydown',e=>{if(e.key==='Enter')run()});g('aGo').onclick=run;
+const reset=()=>{['aQ','aMin','aMax','aType','aState','aCls','aCat','aPri'].forEach(i=>g(i).value='');g('aIn').value='all';g('aSort').value='wd';g('aYear').selectedIndex=0};
+g('aReset').onclick=()=>{reset();run()};
+g('aCsv').onclick=()=>{if(rows.length)downloadRows('aquawatch_custom_search.csv',rows)};
+document.querySelectorAll('[data-p]').forEach(a=>a.onclick=()=>{reset();const p=a.dataset.p;
+ if(p==='polluted'){g('aType').value='major';g('aCat').value='Severely polluted'}else if(p==='clean'){g('aSort').value='wa';g('aCat').value='Excellent'}
+ else if(p==='small'){g('aType').value='minor';g('aState').value=D.states.indexOf('GUJARAT')}else{g('aQ').value='Sabarmati, Mahi, Narmada';g('aIn').value='river'}run()});
+g('aOut').addEventListener('click',e=>{const a=e.target.closest('a');if(!a)return;if(a.dataset.st)openStation(+a.dataset.st);else if(a.dataset.rv){g('fRiver').value=a.dataset.rv;render();showTab('river')}});
+})();
+</script>
+<script>
+(()=>{const RM=matchMedia('(prefers-reduced-motion:reduce)').matches,g=id=>document.getElementById(id),Q=s=>[...document.querySelectorAll(s)];
+const CONTACT={email:'hello@aquawatch.example',place:'Your institute, City, India',phone:'+91 00000 00000'};
+Q('[data-c]').forEach(e=>e.textContent=CONTACT[e.dataset.c]);
+Q('.split').forEach(h=>h.innerHTML=h.textContent.split(' ').map((w,i)=>'<span class="w"><span style="--i:'+i+'">'+w+'</span></span>').join(' '));
+if(!RM){const b=g('bubbles');for(let i=0;i<16;i++){const s=document.createElement('span'),z=8+Math.random()*30;s.style.cssText='width:'+z+'px;height:'+z+'px;left:'+Math.random()*100+'%;animation-duration:'+(9+Math.random()*12)+'s;animation-delay:-'+Math.random()*14+'s';b.appendChild(s)}}
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.15});Q('#v-home .rv').forEach(e=>io.observe(e));
+const H=g('hHero');H.addEventListener('mousemove',e=>{const r=H.getBoundingClientRect();H.style.setProperty('--mx',((e.clientX-r.left)/r.width-.5).toFixed(3));H.style.setProperty('--my',((e.clientY-r.top)/r.height-.5).toFixed(3))});
+let tk=0;addEventListener('scroll',()=>{if(tk)return;tk=requestAnimationFrame(()=>{tk=0;const m=document.documentElement.scrollHeight-innerHeight;g('prog').style.transform='scaleX('+(m>0?scrollY/m:0)+')';H.style.setProperty('--sy',scrollY)})},{passive:true});
+Q('.tilt').forEach(c=>{if(RM)return;c.addEventListener('mousemove',e=>{const r=c.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;c.style.transform='perspective(700px) rotateY('+x*10+'deg) rotateX('+-y*10+'deg) translateY(-4px)';c.style.setProperty('--gx',(x+.5)*100+'%');c.style.setProperty('--gy',(y+.5)*100+'%')});c.addEventListener('mouseleave',()=>c.style.transform='')});
+const words=['drinking after treatment','bathing','fisheries and wildlife','irrigation'];let wi=0;if(!RM)setInterval(()=>{const r=g('rot');r.classList.add('out');setTimeout(()=>{wi=(wi+1)%words.length;r.textContent=words[wi];r.classList.remove('out')},350)},2600);
+document.addEventListener('click',e=>{const a=e.target.closest('[data-go],[data-sc],.brand');if(!a)return;if(a.dataset.go)showTab(a.dataset.go);else if(a.dataset.sc)g(a.dataset.sc).scrollIntoView({behavior:RM?'auto':'smooth'});else showTab('home')});
+g('cForm').addEventListener('submit',e=>{e.preventDefault();g('cOk').classList.add('on');location.href='mailto:'+CONTACT.email+'?subject='+encodeURIComponent('AquaWatch message from '+g('cN').value)+'&body='+encodeURIComponent(g('cM').value+'\n\n'+g('cN').value+' ('+g('cE').value+')')});
+function count(el,n,suf){const t=n.toLocaleString()+(suf||''),t0=performance.now();if(RM){el.textContent=t;return}(function s(x){const p=Math.min(1,(x-t0)/1800),v=n*(1-Math.pow(1-p,4));el.textContent=p<1?Math.round(v).toLocaleString()+(suf||''):t;if(p<1)requestAnimationFrame(s)})(t0)}
+const med=a=>{a=a.filter(x=>x!=null).sort((x,y)=>x-y);return a.length?a[Math.floor(a.length/2)]:null};
+function hydrate(){const named=D.rivers.filter(r=>!/^(other streams|&)/i.test(r.name)),L=D.meta.latest,rows=BYYEAR.get(L)||[],ac=rows.filter(r=>['A','B','C'].includes(r.cls)).length,pct=rows.length?Math.round(100*ac/rows.length):0;
+ const val={st:D.stations.length,rv:named.length,rd:RD.length,ok:pct};g('okl').textContent='of stations usable after treatment ('+L+')';
+ const co=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){const k=e.target.dataset.k;count(e.target,val[k],e.target.dataset.suf);co.unobserve(e.target)}}),{threshold:.4});Q('[data-k]').forEach(e=>co.observe(e));
+ const nm=named.map(r=>r.name).slice(0,45).map(n=>'<span>'+esc(n)+'</span>').join('');g('marq').innerHTML=nm+nm;
+ g('dTitle').textContent='Rivers at a glance in '+L;
+ g('dBars').innerHTML='<h3>Share of stations by water quality</h3>'+WQI.map(b=>{const n=rows.filter(r=>cat(r.w)[0]===b[1]).length,p=rows.length?100*n/rows.length:0;return '<div><span>'+b[1]+'</span><span>'+p.toFixed(0)+'%</span><div class="t"><i style="--w:'+p+'%;background:'+b[2]+'"></i></div></div>'}).join('');
+ const ys=D.meta.years,ms=ys.map(y=>med((BYYEAR.get(y)||[]).map(r=>r.w))),ok=ms.filter(v=>v!=null),lo=Math.min(...ok)-5,hi=Math.max(...ok)+5,X=i=>50+i*(500/Math.max(1,ys.length-1)),Y=v=>170-(v-lo)/(hi-lo)*130;
+ const pts=ys.map((y,i)=>ms[i]==null?null:[X(i),Y(ms[i]),ms[i],y]).filter(Boolean);
+ g('dLine').innerHTML='<svg class="ln" viewBox="0 0 600 210"><path class="l" pathLength="1" d="'+pts.map((q,i)=>(i?'L':'M')+q[0].toFixed(1)+' '+q[1].toFixed(1)).join('')+'"/>'+pts.map((q,i)=>'<circle style="--k:'+i+'" cx="'+q[0]+'" cy="'+q[1]+'" r="5"/><text x="'+q[0]+'" y="'+(q[1]-12)+'">'+q[2].toFixed(0)+'</text><text x="'+q[0]+'" y="200">'+q[3]+'</text>').join('')+'</svg>'}
+const w=setInterval(()=>{if(typeof D!=='undefined'&&D&&D.meta&&RD.length){clearInterval(w);hydrate()}},150);
+})();
+</script>
+</body>
+</html>
